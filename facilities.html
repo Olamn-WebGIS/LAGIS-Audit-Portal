@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Facilities - Admin</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+      #adminMap { width: 100%; height: 420px; border-radius: 12px; }
+      .facilities-table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+      .facilities-table th, .facilities-table td { padding: 12px 10px; border: 1px solid #e2e8ec; }
+    </style>
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-inner">
+        <div class="logo-bar">
+          <div>
+            <div class="logo-name">LAGIS</div>
+            <div class="logo-subtitle">State Government</div>
+          </div>
+          <div class="header-right">
+            <nav class="nav-links" id="desktopNav">
+              <a class="nav-link" href="admin.html">Dashboard</a>
+              <a class="nav-link" href="facilities.html">Facilities</a>
+              <a class="nav-link" href="manage-users.html">Manage Users</a>
+            </nav>
+            <button class="logout-btn" id="logoutBtnAdmin" aria-label="Logout">⎋</button>
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">☰</button>
+          </div>
+        </div>
+        <div class="mobile-nav" id="mobileNav" aria-hidden="true">
+          <a class="mobile-nav-link" href="admin.html">Dashboard</a>
+          <a class="mobile-nav-link" href="facilities.html">Facilities</a>
+          <a class="mobile-nav-link" href="manage-users.html">Manage Users</a>
+          <button class="mobile-nav-link logout-mobile" id="logoutMobile">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="badge">FACILITIES</div>
+        <h1>All Facilities</h1>
+        <p class="hero-copy">Overview of facilities submitted by agents. View on map or manage records.</p>
+
+        <div class="info-card">
+          <h2>Map</h2>
+          <div id="adminMap"></div>
+        </div>
+
+        <div class="info-card" style="margin-top:18px;">
+          <h2>Saved Facilities</h2>
+          <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+            <input id="facilitiesSearch" placeholder="Search by name, type or LGA" style="flex:1 1 320px; border-radius:12px; padding:10px 12px; border:1px solid #d8e2d4;" />
+            <div>
+              <button class="action-button" id="exportCsvBtnFac">Export CSV</button>
+              <button class="action-button" id="exportJsonBtnFac">Export JSON</button>
+              <button class="action-button" id="syncCloudBtn" style="display:none;"><span class="sync-spinner hidden" id="syncSpinnerAdmin"></span>Sync to Cloud</button>
+              <button class="action-button" id="downloadCloudBtn" style="display:none;">Download from Cloud</button>
+            </div>
+          </div>
+          <div class="sync-status-row" style="margin-bottom:12px;">
+            <span id="syncStatusTextFac">Last Synced: never</span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="facilities-table" id="facilitiesTable">
+              <thead>
+                <tr>
+                  <th>S/N</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>LGA</th>
+                  <th>GPS</th>
+                  <th>Added By</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div class="empty-message" id="facilitiesEmpty">No facilities yet.</div>
+          </div>
+
+          <div class="table-footer">
+            <span class="record-count" id="recordCountFac">0 facilities</span>
+            <div class="pagination-controls" id="paginationControlsFac">
+              <button type="button" class="action-button" id="prevPageBtnFac">Prev</button>
+              <span class="page-label" id="pageLabelFac"></span>
+              <button type="button" class="action-button" id="nextPageBtnFac">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+    <script>
+      (function () {
+        const mapEl = document.getElementById('adminMap');
+        const tableBody = document.querySelector('#facilitiesTable tbody');
+        const emptyEl = document.getElementById('facilitiesEmpty');
+        const savedKey = 'lagis_facilities';
+        const searchInput = document.getElementById('facilitiesSearch');
+        const exportCsvBtn = document.getElementById('exportCsvBtnFac');
+        const exportJsonBtn = document.getElementById('exportJsonBtnFac');
+        const syncCloudBtn = document.getElementById('syncCloudBtn');
+        const downloadCloudBtn = document.getElementById('downloadCloudBtn');
+        const prevBtn = document.getElementById('prevPageBtnFac');
+        const nextBtn = document.getElementById('nextPageBtnFac');
+        const pageLabel = document.getElementById('pageLabelFac');
+        const recordCount = document.getElementById('recordCountFac');
+        let map = null;
+        let markers = {};
+        let allFacilities = [];
+        let currentPage = 1;
+        const itemsPerPage = 20;
+
+        function initMap() {
+          map = L.map('adminMap', {
+            zoomControl: true,
+            zoomSnap: 0.25,
+            zoomDelta: 0.5,
+            maxZoom: 19,
+          });
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19,
+            maxNativeZoom: 19,
+          }).addTo(map);
+
+          const bounds = [[6.25, 2.70], [6.80, 3.75]];
+          const boundaryLayer = L.geoJSON({
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Polygon',
+              coordinates: [[
+                [2.70, 6.25],
+                [3.75, 6.25],
+                [3.75, 6.80],
+                [2.70, 6.80],
+                [2.70, 6.25],
+              ]],
+            },
+          }, {
+            style: { color: '#006400', weight: 3, fillOpacity: 0 },
+          }).addTo(map);
+
+          const worldMask = {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Polygon',
+              coordinates: [
+                [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]],
+                [[2.70, 6.25], [3.75, 6.25], [3.75, 6.80], [2.70, 6.80], [2.70, 6.25]],
+              ],
+            },
+          };
+
+          L.geoJSON(worldMask, {
+            style: { color: '#000', weight: 0, fillColor: '#000', fillOpacity: 0.5 },
+          }).addTo(map);
+
+          const leafletBounds = boundaryLayer.getBounds();
+          map.fitBounds(leafletBounds.pad(0.12), { maxZoom: 15 });
+          map.setMaxBounds(leafletBounds.pad(0.3));
+
+          const labelControl = L.control({ position: 'topright' });
+          labelControl.onAdd = function () {
+            const div = L.DomUtil.create('div', 'lagis-map-label');
+            div.innerHTML = '<div style="background: rgba(255,255,255,0.95); border: 1px solid #cfe2cf; color: #174b22; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">LAGIS Asset Map - Lagos State</div>';
+            return div;
+          };
+          labelControl.addTo(map);
+        }
+
+        function clearMarkers() {
+          Object.keys(markers).forEach((id) => {
+            try { map.removeLayer(markers[id]); } catch (e) {}
+          });
+          markers = {};
+        }
+
+        function addMarker(facility) {
+          if (!facility || !facility.gps || !map) return null;
+          const parts = facility.gps.split(',').map(s => parseFloat(s.trim()));
+          if (Number.isNaN(parts[0]) || Number.isNaN(parts[1])) return null;
+          const m = L.marker(parts).addTo(map);
+          const popup = `<b>${facility.name}</b><br>Type: ${facility.type}<br>LGA: ${facility.lga}<br>${facility.photo ? `<img src="${facility.photo}" width="120"><br>` : ''}Timestamp: ${new Date(facility.createdAt).toLocaleString()}`;
+          m.bindPopup(popup);
+          markers[facility.id] = m;
+          return m;
+        }
+
+        function loadAllFacilities() {
+          clearMarkers();
+          const raw = localStorage.getItem(savedKey) || '[]';
+          try { allFacilities = JSON.parse(raw); } catch (e) { allFacilities = []; }
+          if (!Array.isArray(allFacilities)) allFacilities = [];
+          allFacilities.forEach((f) => addMarker(f));
+        }
+
+        function getFilteredFacilities() {
+          const q = (searchInput?.value || '').trim().toLowerCase();
+          if (!q) return allFacilities.slice();
+          return allFacilities.filter((f) => {
+            return (f.name || '').toLowerCase().includes(q) || (f.type || '').toLowerCase().includes(q) || (f.lga || '').toLowerCase().includes(q);
+          });
+        }
+
+        function getTotalPages(items) { return Math.max(1, Math.ceil((items.length || 0) / itemsPerPage)); }
+
+        function updatePaginationControls(filtered) {
+          const totalPages = getTotalPages(filtered);
+          currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+          pageLabel.textContent = `Page ${currentPage} of ${totalPages}`;
+          recordCount.textContent = `${filtered.length} facilities`;
+          prevBtn.disabled = currentPage <= 1;
+          nextBtn.disabled = currentPage >= totalPages;
+        }
+
+        function renderTableForPage() {
+          const filtered = getFilteredFacilities();
+          updatePaginationControls(filtered);
+          const start = (currentPage - 1) * itemsPerPage;
+          const pageItems = filtered.slice(start, start + itemsPerPage);
+          tableBody.innerHTML = '';
+          if (!pageItems.length) {
+            emptyEl.style.display = 'block';
+            return;
+          }
+          emptyEl.style.display = 'none';
+            pageItems.forEach((f, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${start + idx + 1}</td>
+              <td>${f.name}</td>
+              <td>${f.type}</td>
+                <td>${f.lga}</td>
+                <td>${f.gps || ''}</td>
+                <td>${f.addedBy || ''}</td>
+              <td>
+                <button class="action-button view" data-id="${f.id}">View</button>
+                <button class="action-button delete" data-id="${f.id}">Delete</button>
+              </td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        }
+
+        tableBody?.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-id]');
+          if (!btn) return;
+          const id = Number(btn.getAttribute('data-id'));
+          if (btn.classList.contains('view')) {
+            const m = markers[id];
+            if (m && map) { map.setView(m.getLatLng(), 15); m.openPopup(); }
+            return;
+          }
+          if (btn.classList.contains('delete')) {
+            if (!confirm('Delete facility?')) return;
+            allFacilities = allFacilities.filter(x => x.id !== id);
+            localStorage.setItem(savedKey, JSON.stringify(allFacilities));
+            if (markers[id] && map) { map.removeLayer(markers[id]); delete markers[id]; }
+            renderTableForPage();
+          }
+        });
+
+        prevBtn?.addEventListener('click', () => { if (currentPage <= 1) return; currentPage -= 1; renderTableForPage(); });
+        nextBtn?.addEventListener('click', () => { const filtered = getFilteredFacilities(); const total = getTotalPages(filtered); if (currentPage >= total) return; currentPage += 1; renderTableForPage(); });
+
+        searchInput?.addEventListener('input', () => { currentPage = 1; renderTableForPage(); });
+
+        // export helpers
+        function formatCsv(items) {
+          const headers = ['id', 'createdAt', 'type', 'name', 'lga', 'addedBy', 'address', 'gps'];
+          const rows = items.map((facility) => {
+            return headers.map((key) => {
+              const value = facility[key] ?? '';
+              const safe = String(value).replace(/"/g, '""');
+              return `"${safe}"`;
+            }).join(',');
+          });
+          return [headers.join(','), ...rows].join('\n');
+        }
+
+        function getExportData(items) { return items.map(({ photo, ...rest }) => rest); }
+
+        function downloadFile(filename, content, mime) {
+          const blob = new Blob([content], { type: mime });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+
+        exportCsvBtn?.addEventListener('click', () => {
+          const filtered = getFilteredFacilities();
+          if (!filtered.length) { alert('No data to export'); return; }
+          const csv = formatCsv(getExportData(filtered));
+          downloadFile('lagis_facilities.csv', csv, 'text/csv;charset=utf-8;');
+        });
+
+        exportJsonBtn?.addEventListener('click', () => {
+          const filtered = getFilteredFacilities();
+          if (!filtered.length) { alert('No data to export'); return; }
+          const json = JSON.stringify(getExportData(filtered), null, 2);
+          downloadFile(`lagis_export_${new Date().toISOString().slice(0,10)}.json`, json, 'application/json;charset=utf-8;');
+        });
+
+        // header mobile + logout + active link
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const mobileNav = document.getElementById('mobileNav');
+        const logoutBtn = document.getElementById('logoutBtnAdmin');
+        const logoutMobile = document.getElementById('logoutMobile');
+        function logout() { try { localStorage.removeItem('adminName'); } catch(e){} window.location.href = 'index.html'; }
+        mobileBtn?.addEventListener('click', () => { if (!mobileNav) return; const visible = mobileNav.getAttribute('aria-hidden') === 'false'; mobileNav.setAttribute('aria-hidden', visible ? 'true' : 'false'); mobileNav.style.display = visible ? 'none' : 'block'; });
+        logoutBtn?.addEventListener('click', logout);
+        logoutMobile?.addEventListener('click', logout);
+        const path = window.location.pathname.split('/').pop();
+        document.querySelectorAll('.nav-link, .mobile-nav-link').forEach((el) => { const href = el.getAttribute('href') || ''; if (href.split('/').pop() === path) el.classList.add('active'); });
+
+        window.addEventListener('load', async () => {
+          initMap();
+          loadAllFacilities();
+          renderTableForPage();
+
+          const loggedAgent = localStorage.getItem('agentName');
+          const loggedAdmin = localStorage.getItem('adminName');
+          const isAgent = Boolean(loggedAgent) && !Boolean(loggedAdmin);
+          const isAdmin = Boolean(loggedAdmin);
+
+          if (isAgent && syncCloudBtn) syncCloudBtn.style.display = 'inline-flex';
+          if (isAdmin && downloadCloudBtn) downloadCloudBtn.style.display = 'inline-flex';
+          initializeSyncStatus();
+        });
+      })();
+    </script>
+  </body>
+</html>

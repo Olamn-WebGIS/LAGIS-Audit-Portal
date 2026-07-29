@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      .dashboard-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 16px;
+      }
+      .dashboard-toolbar .primary {
+        border: none;
+        cursor: pointer;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin: 18px 0 20px;
+      }
+      .summary-card {
+        background: linear-gradient(135deg, #f7fbf7 0%, #edf7ee 100%);
+        border: 1px solid #dce9dc;
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 8px 26px rgba(17, 65, 34, 0.06);
+      }
+      .summary-card h3 {
+        margin: 0 0 10px;
+        font-size: 0.95rem;
+        color: #546b56;
+      }
+      .summary-card .value {
+        font-size: 1.7rem;
+        font-weight: 700;
+        color: #174b22;
+      }
+      .summary-card .subtext {
+        margin-top: 8px;
+        font-size: 0.9rem;
+        color: #627a63;
+      }
+      .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .chart-card {
+        min-height: 340px;
+      }
+      .chart-card canvas {
+        width: 100% !important;
+        height: 240px !important;
+      }
+      .print-only-header {
+        display: none;
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #d9e3d9;
+      }
+      .print-only-header h2 {
+        margin: 0 0 4px;
+        color: #174b22;
+        font-size: 1.25rem;
+      }
+      .print-only-header p {
+        margin: 0;
+        color: #5c6f5f;
+        font-size: 0.95rem;
+      }
+      @media (max-width: 900px) {
+        .stats-grid,
+        .charts-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media print {
+        body {
+          background: #fff;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .page-header {
+          display: none !important;
+        }
+        .page-shell {
+          padding: 0;
+        }
+        .hero-card {
+          box-shadow: none !important;
+          border: 1px solid #e3ece4;
+          padding: 18px;
+        }
+        .print-only-header {
+          display: block;
+        }
+        .stats-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin: 8px 0 14px;
+        }
+        .summary-card,
+        .chart-card {
+          break-inside: avoid;
+          page-break-inside: avoid;
+          box-shadow: none;
+          background: #fff;
+        }
+        .charts-grid {
+          gap: 12px;
+          align-items: start;
+        }
+        .chart-card canvas {
+          height: 220px !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-inner">
+        <div class="logo-bar">
+          <div>
+            <div class="logo-name">LAGIS</div>
+            <div class="logo-subtitle">State Government</div>
+          </div>
+          <div class="header-right">
+            <nav class="nav-links" id="desktopNav">
+              <a class="nav-link" href="admin.html">Dashboard</a>
+              <a class="nav-link" href="facilities.html">Facilities</a>
+              <a class="nav-link" href="manage-users.html">Manage Users</a>
+            </nav>
+            <button class="logout-btn" id="logoutBtnAdmin" aria-label="Logout">⎋</button>
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">☰</button>
+          </div>
+        </div>
+        <div class="mobile-nav" id="mobileNav" aria-hidden="true">
+          <a class="mobile-nav-link" href="admin.html">Dashboard</a>
+          <a class="mobile-nav-link" href="facilities.html">Facilities</a>
+          <a class="mobile-nav-link" href="manage-users.html">Manage Users</a>
+          <button class="mobile-nav-link logout-mobile" id="logoutMobile">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="print-only-header">
+          <h2>LAGIS Audit Portal Dashboard</h2>
+          <p id="printDate">Generated on loading...</p>
+        </div>
+        <p class="hero-copy">Administrative access granted. Manage portal settings, review reports, and oversee field validation operations.</p>
+        <div class="dashboard-toolbar no-print">
+          <button type="button" id="dashboardExportBtn" class="primary">Export Dashboard PDF</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="summary-card">
+            <h3>Total Facilities</h3>
+            <div class="value" id="totalFacilitiesValue">0</div>
+            <div class="subtext">All submitted records</div>
+          </div>
+          <div class="summary-card">
+            <h3>Total by Facility Type</h3>
+            <div class="value" id="typeCountValue">0</div>
+            <div class="subtext">Distinct facility categories</div>
+          </div>
+          <div class="summary-card">
+            <h3>Total by LGA</h3>
+            <div class="value" id="lgaCountValue">0</div>
+            <div class="subtext">Distinct local government areas</div>
+          </div>
+          <div class="summary-card">
+            <h3>Last Synced Time</h3>
+            <div class="value" id="lastSyncedValue">Never</div>
+            <div class="subtext">Latest cloud sync timestamp</div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="info-card chart-card">
+            <h2>Facilities by LGA</h2>
+            <canvas id="lgaChart"></canvas>
+          </div>
+          <div class="info-card chart-card">
+            <h2>Facilities by Type</h2>
+            <canvas id="typeChart"></canvas>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="script.js"></script>
+    <script>
+      (function () {
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const mobileNav = document.getElementById('mobileNav');
+        const logoutBtn = document.getElementById('logoutBtnAdmin');
+        const logoutMobile = document.getElementById('logoutMobile');
+        const exportBtn = document.getElementById('dashboardExportBtn');
+        const totalFacilitiesValue = document.getElementById('totalFacilitiesValue');
+        const typeCountValue = document.getElementById('typeCountValue');
+        const lgaCountValue = document.getElementById('lgaCountValue');
+        const lastSyncedValue = document.getElementById('lastSyncedValue');
+        const printDate = document.getElementById('printDate');
+        const savedFacilitiesKey = 'lagis_facilities';
+        const lastSyncKey = 'lagis_last_sync';
+        let lgaChart = null;
+        let typeChart = null;
+
+        function logout() {
+          try { localStorage.removeItem('adminName'); } catch (e) {}
+          window.location.href = 'index.html';
+        }
+
+        mobileBtn?.addEventListener('click', () => {
+          if (!mobileNav) return;
+          const visible = mobileNav.getAttribute('aria-hidden') === 'false';
+          mobileNav.setAttribute('aria-hidden', visible ? 'true' : 'false');
+          mobileNav.style.display = visible ? 'none' : 'block';
+        });
+
+        logoutBtn?.addEventListener('click', logout);
+        logoutMobile?.addEventListener('click', logout);
+        exportBtn?.addEventListener('click', () => window.print());
+
+        window.addEventListener('beforeprint', () => {
+          if (printDate) {
+            printDate.textContent = `Generated on ${new Date().toLocaleString()}`;
+          }
+          lgaChart?.resize();
+          typeChart?.resize();
+        });
+
+        function normalizeFacility(item) {
+          return {
+            id: String(item.id || ''),
+            type: (item.type || 'Unknown').trim() || 'Unknown',
+            lga: (item.lga || 'Unknown').trim() || 'Unknown',
+            createdAt: item.createdAt || new Date().toISOString(),
+            addedBy: item.addedBy || '',
+            gps: item.gps || '',
+          };
+        }
+
+        function getLocalFacilities() {
+          try {
+            const raw = localStorage.getItem(savedFacilitiesKey) || '[]';
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.map(normalizeFacility) : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        async function getCloudFacilities() {
+          const url = await getEnvValue('SHEETDB_URL');
+          if (!navigator.onLine || !url) return [];
+          try {
+            const response = await fetch(url);
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data) ? data.map(normalizeFacility) : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function mergeFacilities(localFacilities, cloudFacilities) {
+          const merged = new Map();
+          [...localFacilities, ...cloudFacilities].forEach((facility) => {
+            if (!facility.id) return;
+            if (!merged.has(facility.id)) {
+              merged.set(facility.id, facility);
+            }
+          });
+          return Array.from(merged.values());
+        }
+
+        function renderSummary(facilities) {
+          const total = facilities.length;
+          const types = new Set(facilities.map((f) => f.type).filter(Boolean));
+          const lgas = new Set(facilities.map((f) => f.lga).filter(Boolean));
+          const lastSynced = localStorage.getItem(lastSyncKey) || 'Never';
+
+          if (totalFacilitiesValue) totalFacilitiesValue.textContent = total;
+          if (typeCountValue) typeCountValue.textContent = types.size;
+          if (lgaCountValue) lgaCountValue.textContent = lgas.size;
+          if (lastSyncedValue) lastSyncedValue.textContent = lastSynced === 'Never' ? 'Never' : lastSynced;
+        }
+
+        function buildChartData(facilities, key) {
+          const counts = {};
+          facilities.forEach((facility) => {
+            const value = facility[key] || 'Unknown';
+            counts[value] = (counts[value] || 0) + 1;
+          });
+          return {
+            labels: Object.keys(counts),
+            data: Object.values(counts),
+          };
+        }
+
+        function renderCharts(facilities) {
+          const lgaData = buildChartData(facilities, 'lga');
+          const typeData = buildChartData(facilities, 'type');
+
+          if (lgaChart) lgaChart.destroy();
+          if (typeChart) typeChart.destroy();
+
+          const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+            },
+          };
+
+          const chartColors = ['#1f6f3c', '#4b8f58', '#7cbf81', '#a2d1a8', '#2e7d32', '#5abf7d'];
+
+          const lgaCtx = document.getElementById('lgaChart');
+          const typeCtx = document.getElementById('typeChart');
+
+          if (lgaCtx) {
+            lgaChart = new Chart(lgaCtx, {
+              type: 'bar',
+              data: {
+                labels: lgaData.labels,
+                datasets: [{
+                  label: 'Facilities by LGA',
+                  data: lgaData.data,
+                  backgroundColor: chartColors,
+                  borderRadius: 8,
+                }],
+              },
+              options: chartOptions,
+            });
+          }
+
+          if (typeCtx) {
+            typeChart = new Chart(typeCtx, {
+              type: 'pie',
+              data: {
+                labels: typeData.labels,
+                datasets: [{
+                  label: 'Facilities by Type',
+                  data: typeData.data,
+                  backgroundColor: chartColors,
+                }],
+              },
+              options: {
+                ...chartOptions,
+                plugins: {
+                  legend: { position: 'bottom' },
+                },
+              },
+            });
+          }
+        }
+
+        async function loadDashboardData() {
+          const localFacilities = getLocalFacilities();
+          const cloudFacilities = await getCloudFacilities();
+          const facilities = mergeFacilities(localFacilities, cloudFacilities);
+          renderSummary(facilities);
+          renderCharts(facilities);
+        }
+
+        // set active nav link
+        const path = window.location.pathname.split('/').pop();
+        document.querySelectorAll('.nav-link, .mobile-nav-link').forEach((el) => {
+          const href = el.getAttribute('href') || '';
+          if (href.split('/').pop() === path) el.classList.add('active');
+        });
+
+        window.addEventListener('online', () => loadDashboardData());
+        window.addEventListener('load', () => loadDashboardData());
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>LAGIS Audit Portal MVP</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-inner">
+        <div class="logo-bar">
+          <div>
+            <div class="logo-name">LAGIS</div>
+            <div class="logo-subtitle">State Government</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="badge">LAGIS STATE GOVERNMENT</div>
+        <h1>LAGIS LGA Asset Validation Portal</h1>
+        <div class="pill">Secure field validation for public assets</div>
+        <p class="hero-copy">Track, review, and validate local government assets with confidence. This first step sets up the foundation for a digital inspection portal for LAGIS field agents and administrators.</p>
+        <div class="button-row">
+          <button class="primary" id="agentLoginBtn">Agent Login</button>
+          <button class="secondary" id="adminLoginBtn">Admin Login</button>
+        </div>
+
+        <div class="info-card">
+          <h2>Portal Focus</h2>
+          <ul>
+            <li>Asset inspection workflow</li>
+            <li>Mobile-friendly field access</li>
+            <li>Clean government dashboard UI</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <div class="login-modal" id="agentModal" aria-hidden="true">
+      <div class="modal-card">
+        <button class="close-button" data-close>&times;</button>
+        <div class="modal-avatar">Lagos</div>
+        <h2>LGA Asset Validation Portal</h2>
+        <p class="modal-copy">Sign in with your demo credentials to access the validation dashboard.</p>
+        <p class="modal-status">Sign in as Agent</p>
+        <form class="login-form" id="agentForm">
+          <label for="agentUsername">Username</label>
+          <input id="agentUsername" type="text" placeholder="Enter username" autocomplete="username" />
+          <label for="agentPassword">Password</label>
+          <input id="agentPassword" type="password" placeholder="Enter password" autocomplete="current-password" />
+          <button class="modal-submit" type="submit">Login</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="login-modal" id="adminModal" aria-hidden="true">
+      <div class="modal-card">
+        <button class="close-button" data-close>&times;</button>
+        <div class="modal-avatar">Lagos</div>
+        <h2>LGA Asset Validation Portal</h2>
+        <p class="modal-copy">Sign in with your demo credentials to access the validation dashboard.</p>
+        <p class="modal-status">Sign in as Admin</p>
+        <form class="login-form" id="adminForm">
+          <label for="adminUsername">Username</label>
+          <input id="adminUsername" type="text" placeholder="Enter username" autocomplete="username" />
+          <label for="adminPassword">Password</label>
+          <input id="adminPassword" type="password" placeholder="Enter password" autocomplete="current-password" />
+          <button class="modal-submit" type="submit">Login</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

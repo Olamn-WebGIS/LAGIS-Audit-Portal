@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Agent Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  </head>
+  <body class="agent-page">
+    <header class="page-header">
+      <div class="header-inner agent-header">
+        <div class="logo-bar agent-top-bar">
+          <div>
+            <div class="logo-name">LAGIS</div>
+            <div class="logo-subtitle">State Government</div>
+          </div>
+          <div class="header-right">
+            <div class="agent-name" id="agentNameDisplay">Agent</div>
+            <button class="logout-btn" id="logoutBtn" aria-label="Logout">⎋</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="network-status" id="networkStatus">Status: Online</div>
+
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="badge">AGENT DASHBOARD</div>
+        <h1>Welcome, <span id="agentNameHeading">Agent</span></h1>
+        <p class="hero-copy">You have successfully signed in. Use the portal tools below to manage asset validation in the field.</p>
+        <div class="info-card">
+          <h2>Agent Actions</h2>
+          <ul>
+            <li>Start a new asset inspection</li>
+            <li>Review pending validation tasks</li>
+            <li>Upload field evidence and reports</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="map-card">
+        <div class="map-header">
+          <h2>Lagos State Facility Map</h2>
+          <p>Showing the Lagos state area focused on facility coverage.</p>
+        </div>
+        <div id="lagosMap"></div>
+      </section>
+      <section class="saved-facilities-card">
+        <div class="map-header">
+          <h2>Saved Facilities</h2>
+          <p>Manage offline facility records captured in the app.</p>
+        </div>
+        <div class="facility-filters" id="facilityFilters">
+          <div class="filter-group">
+            <label for="filterType">Filter by Facility Type</label>
+            <select id="filterType">
+              <option value="">All Types</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filterLga">Filter by LGA</label>
+            <select id="filterLga">
+              <option value="">All LGAs</option>
+            </select>
+          </div>
+          <button type="button" class="action-button clear-filters" id="clearFiltersBtn" aria-label="Clear Filters">
+            Clear Filters
+          </button>
+        </div>
+        <div class="saved-facilities-table-wrap">
+          <div class="sync-status-row">
+            <span id="syncStatusText">Last Synced: never</span>
+            <span class="sync-spinner hidden" id="syncSpinnerAgent"></span>
+          </div>
+          <table class="saved-facilities-table" id="savedFacilitiesTable">
+            <thead>
+              <tr>
+                <th>S/N</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>LGA</th>
+                <th>GPS</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- facility rows injected here -->
+            </tbody>
+          </table>
+          <div class="empty-message" id="savedFacilitiesEmpty">No saved facilities yet.</div>
+          <div class="table-footer">
+            <span class="record-count" id="recordCount">0 facilities</span>
+            <div class="pagination-controls" id="paginationControls">
+              <button type="button" class="action-button" id="prevPageBtn">Prev</button>
+              <span class="page-label" id="pageLabel"></span>
+              <button type="button" class="action-button" id="nextPageBtn">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <button class="fab-button download-button" id="downloadBtn" aria-label="Export">⇩</button>
+    <button class="fab-button sync-fab-button" id="syncCloudFab" aria-label="Sync to Cloud">☁</button>
+    <button class="fab-button" id="addFacilityBtn">Add Facility</button>
+
+    <div class="download-modal" id="downloadModal" aria-hidden="true">
+      <div class="download-card">
+        <button class="facility-close" id="downloadCloseBtn" aria-label="Close">&times;</button>
+        <h2>Export Data</h2>
+        <div class="download-options">
+          <button type="button" class="download-option" id="exportCsvBtn">Export CSV</button>
+          <button type="button" class="download-option" id="exportJsonBtn">Export JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="facility-modal" id="facilityModal" aria-hidden="true">
+      <div class="facility-card">
+        <button class="facility-close" id="facilityCloseBtn" aria-label="Cancel">&times;</button>
+        <h2>Add Facility</h2>
+        <form id="facilityForm">
+          <label for="facilityType">Facility Type</label>
+          <select id="facilityType" required>
+            <option value="">Select a type</option>
+            <option>Primary School</option>
+            <option>Primary Health Centre</option>
+            <option>Market</option>
+            <option>Police Post</option>
+            <option>Motor Park</option>
+          </select>
+
+          <label for="facilityName">Facility Name</label>
+          <input id="facilityName" type="text" required placeholder="Enter facility name" />
+          <div class="field-error" id="facilityNameError"></div>
+
+          <label for="facilityLga">LGA</label>
+          <select id="facilityLga" required>
+            <option value="">Select an LGA</option>
+            <option>Agege</option>
+            <option>Ajeromi-Ifelodun</option>
+            <option>Alimosho</option>
+            <option>Amuwo-Odofin</option>
+            <option>Apapa</option>
+            <option>Badagry</option>
+            <option>Epe</option>
+            <option>Eti-Osa</option>
+            <option>Ibeju-Lekki</option>
+            <option>Ifako-Ijaiye</option>
+            <option>Ikeja</option>
+            <option>Ikorodu</option>
+            <option>Kosofe</option>
+            <option>Lagos Island</option>
+            <option>Lagos Mainland</option>
+            <option>Mushin</option>
+            <option>Ojo</option>
+            <option>Oshodi-Isolo</option>
+            <option>Shomolu</option>
+            <option>Surulere</option>
+          </select>
+          <div class="field-error" id="facilityLgaError"></div>
+
+          <label for="facilityAddress">Address</label>
+          <textarea id="facilityAddress" rows="3" required placeholder="Enter address"></textarea>
+
+          <div class="facility-row">
+            <div>
+              <label for="facilityGps">GPS</label>
+              <input id="facilityGps" type="text" readonly placeholder="Tap Get GPS" />
+              <div class="gps-info" id="gpsInfo" aria-live="polite"></div>
+            </div>
+            <button type="button" class="gps-button" id="getGpsBtn">Get GPS</button>
+          </div>
+
+          <label for="facilityPhoto">Photo</label>
+          <input id="facilityPhoto" type="file" accept="image/*" capture="camera" />
+          <div class="field-error" id="facilityPhotoError"></div>
+
+          <div class="facility-actions">
+            <button class="save-button" type="submit">Save Facility</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manage Users - Admin</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-inner">
+        <div class="logo-bar">
+          <div>
+            <div class="logo-name">LAGIS</div>
+            <div class="logo-subtitle">State Government</div>
+          </div>
+          <div class="header-right">
+            <nav class="nav-links" id="desktopNav">
+              <a class="nav-link" href="admin.html">Dashboard</a>
+              <a class="nav-link" href="facilities.html">Facilities</a>
+              <a class="nav-link" href="manage-users.html">Manage Users</a>
+            </nav>
+            <button class="logout-btn" id="logoutBtnAdmin" aria-label="Logout">⎋</button>
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">☰</button>
+          </div>
+        </div>
+        <div class="mobile-nav" id="mobileNav" aria-hidden="true">
+          <a class="mobile-nav-link" href="admin.html">Dashboard</a>
+          <a class="mobile-nav-link" href="facilities.html">Facilities</a>
+          <a class="mobile-nav-link" href="manage-users.html">Manage Users</a>
+          <button class="mobile-nav-link logout-mobile" id="logoutMobile">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="badge">MANAGE USERS</div>
+        <h1>User Management</h1>
+        <p class="hero-copy">View and manage users who have access to the Lagos Audit Portal.</p>
+        <div class="info-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+            <h2>Users</h2>
+            <div>
+              <button class="action-button" id="addUserBtn">Add User</button>
+            </div>
+          </div>
+
+          <div style="margin-top:16px; overflow-x:auto;">
+            <table class="saved-facilities-table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>S/N</th>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div class="empty-message" id="usersEmpty">No users yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Add/Edit User Modal -->
+      <div class="facility-modal" id="userModal" aria-hidden="true">
+        <div class="facility-card">
+          <button class="facility-close" id="userModalClose">&times;</button>
+          <h2 id="userModalTitle">Add User</h2>
+          <form id="userForm">
+            <label for="userName">Username</label>
+            <input id="userName" type="text" required />
+
+            <label for="userPassword">Password</label>
+            <input id="userPassword" type="password" required />
+
+            <label for="userRole">Role</label>
+            <select id="userRole" required>
+              <option value="">Select role</option>
+              <option>Admin</option>
+              <option>Agent</option>
+            </select>
+
+            <div class="facility-actions">
+              <button type="submit" class="save-button">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+    <script>
+      (function () {
+        const storageKey = 'lagis_users';
+        const usersTableBody = document.querySelector('#usersTable tbody');
+        const usersEmpty = document.getElementById('usersEmpty');
+        const addUserBtn = document.getElementById('addUserBtn');
+        const userModal = document.getElementById('userModal');
+        const userModalClose = document.getElementById('userModalClose');
+        const userForm = document.getElementById('userForm');
+        const userModalTitle = document.getElementById('userModalTitle');
+        const userName = document.getElementById('userName');
+        const userPassword = document.getElementById('userPassword');
+        const userRole = document.getElementById('userRole');
+
+        let editId = null;
+
+        function loadUsers() {
+          const raw = localStorage.getItem(storageKey) || '[]';
+          try { return JSON.parse(raw); } catch (e) { return []; }
+        }
+
+        function saveUsers(list) {
+          localStorage.setItem(storageKey, JSON.stringify(list));
+        }
+
+        function renderUsers() {
+          const users = loadUsers();
+          usersTableBody.innerHTML = '';
+          if (!Array.isArray(users) || users.length === 0) {
+            usersEmpty.style.display = 'block';
+            return;
+          }
+          usersEmpty.style.display = 'none';
+          users.forEach((u, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${i+1}</td>
+              <td>${u.username}</td>
+              <td>${u.role}</td>
+              <td>
+                <button class="action-button edit" data-id="${u.id}">Edit</button>
+                <button class="action-button delete" data-id="${u.id}">Delete</button>
+              </td>
+            `;
+            usersTableBody.appendChild(tr);
+          });
+        }
+
+        function openModal() { userModal.setAttribute('aria-hidden', 'false'); userModal.style.display = 'flex'; }
+        function closeModal() { userModal.setAttribute('aria-hidden', 'true'); userModal.style.display = 'none'; }
+
+        addUserBtn?.addEventListener('click', () => {
+          editId = null;
+          userModalTitle.textContent = 'Add User';
+          userForm.reset();
+          openModal();
+        });
+
+        userModalClose?.addEventListener('click', closeModal);
+        userModal?.addEventListener('click', (e) => { if (e.target === userModal) closeModal(); });
+
+        usersTableBody?.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-id]');
+          if (!btn) return;
+          const id = btn.getAttribute('data-id');
+          if (btn.classList.contains('delete')) {
+            if (!confirm('Delete user?')) return;
+            const users = loadUsers().filter(u => u.id !== Number(id));
+            saveUsers(users);
+            renderUsers();
+            return;
+          }
+          if (btn.classList.contains('edit')) {
+            const users = loadUsers();
+            const u = users.find(x => x.id === Number(id));
+            if (!u) return;
+            editId = u.id;
+            userModalTitle.textContent = 'Edit User';
+            userName.value = u.username;
+            userPassword.value = u.password || '';
+            userRole.value = u.role || '';
+            openModal();
+          }
+        });
+
+        userForm?.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const users = loadUsers();
+          if (editId) {
+            const idx = users.findIndex(u => u.id === editId);
+            if (idx >= 0) {
+              users[idx].username = userName.value.trim();
+              users[idx].password = userPassword.value;
+              users[idx].role = userRole.value;
+            }
+          } else {
+            const newUser = {
+              id: Date.now(),
+              username: userName.value.trim(),
+              password: userPassword.value,
+              role: userRole.value,
+            };
+            users.push(newUser);
+          }
+          saveUsers(users);
+          renderUsers();
+          closeModal();
+        });
+
+        // header mobile + logout + active link
+        const mobileBtn = document.getElementById('mobileMenuBtn');
+        const mobileNav = document.getElementById('mobileNav');
+        const logoutBtn = document.getElementById('logoutBtnAdmin');
+        const logoutMobile = document.getElementById('logoutMobile');
+        function logout() { try { localStorage.removeItem('adminName'); } catch(e){} window.location.href = 'index.html'; }
+        mobileBtn?.addEventListener('click', () => { if (!mobileNav) return; const visible = mobileNav.getAttribute('aria-hidden') === 'false'; mobileNav.setAttribute('aria-hidden', visible ? 'true' : 'false'); mobileNav.style.display = visible ? 'none' : 'block'; });
+        logoutBtn?.addEventListener('click', logout);
+        logoutMobile?.addEventListener('click', logout);
+        const path = window.location.pathname.split('/').pop();
+        document.querySelectorAll('.nav-link, .mobile-nav-link').forEach((el) => { const href = el.getAttribute('href') || ''; if (href.split('/').pop() === path) el.classList.add('active'); });
+
+        // initial render
+        renderUsers();
+      })();
+    </script>
+  </body>
+</html>
