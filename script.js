@@ -835,7 +835,7 @@ if (getGpsBtn) {
     gpsInfo.classList.toggle('error', isError);
   }
 
-  getGpsBtn.addEventListener('click', () => {
+  getGpsBtn.addEventListener('click', async () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser.');
       return;
@@ -843,6 +843,21 @@ if (getGpsBtn) {
 
     setGpsInfo('', false);
     setGpsButtonLoading();
+
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const status = await navigator.permissions.query({ name: 'geolocation' });
+        if (status.state === 'denied') {
+          const message = 'Location permission is denied. Allow location access for this site in Safari settings.';
+          setGpsInfo(message, true);
+          alert(message);
+          resetGpsButton();
+          return;
+        }
+      } catch (permError) {
+        // Safari may not support permission query; continue to request location.
+      }
+    }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -855,14 +870,27 @@ if (getGpsBtn) {
         }
         resetGpsButton();
       },
-      () => {
-        setGpsInfo('Please enable location', true);
-        alert('Please enable location');
+      (error) => {
+        let message = 'Unable to determine location.';
+        if (error) {
+          if (error.code === error.PERMISSION_DENIED) {
+            message = 'Location access denied. Please enable location for this site.';
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            message = 'Location unavailable. Check your GPS or network connection.';
+          } else if (error.code === error.TIMEOUT) {
+            message = 'Location request timed out. Try again or check your signal.';
+          }
+          if (error.message) {
+            message += ` (${error.message})`;
+          }
+        }
+        setGpsInfo(message, true);
+        alert(message);
         resetGpsButton();
       },
       {
         enableHighAccuracy: true,
-        timeout: 20000,
+        timeout: 30000,
         maximumAge: 0,
       }
     );
