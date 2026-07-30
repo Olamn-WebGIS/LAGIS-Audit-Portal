@@ -467,6 +467,46 @@ function getExportData(facilities) {
   return facilities.map(({ photo, photoLocalData, photoPublicId, ...rest }) => rest);
 }
 
+function convertFacilitiesToGeoJSON(facilities) {
+  const features = facilities
+    .map((facility) => {
+      const gps = String(facility.gps || '').trim();
+      const [lat, lng] = gps.split(',').map((value) => parseFloat(value.trim()));
+      const properties = { ...facility };
+
+      delete properties.photoLocalData;
+      delete properties.photoPublicId;
+
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [lng, lat],
+          },
+          properties,
+        };
+      }
+
+      return {
+        type: 'Feature',
+        geometry: null,
+        properties,
+      };
+    });
+
+  return {
+    type: 'FeatureCollection',
+    crs: {
+      type: 'name',
+      properties: {
+        name: 'urn:ogc:def:crs:OGC:1.3:CRS84',
+      },
+    },
+    features,
+  };
+}
+
 function dataURLToBlob(dataURL) {
   const parts = dataURL.split(',');
   const meta = parts[0].match(/:(.*?);/);
@@ -835,9 +875,10 @@ function exportFacilities(format) {
     const csv = formatCsv(exportData);
     downloadFile('lagis_facilities.csv', csv, 'text/csv;charset=utf-8;');
   } else {
-    const json = JSON.stringify(exportData, null, 2);
-    const filename = `lagis_export_${getFormattedDate()}.json`;
-    downloadFile(filename, json, 'application/json;charset=utf-8;');
+    const geojson = convertFacilitiesToGeoJSON(exportData);
+    const json = JSON.stringify(geojson, null, 2);
+    const filename = 'LAGIS_Facilities.geojson';
+    downloadFile(filename, json, 'application/geo+json;charset=utf-8;');
   }
   closeDownloadModal();
 }
