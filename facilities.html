@@ -204,6 +204,73 @@
           allFacilities.forEach((f) => addMarker(f));
         }
 
+        function scrollToMap() {
+          if (mapEl) {
+            mapEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+
+        async function deleteSheetDbRow(facilityId) {
+          const url = await getCloudUrl();
+          if (!url) return false;
+          try {
+            const response = await fetch(`${url}/id/${encodeURIComponent(facilityId)}`, {
+              method: 'DELETE',
+            });
+            if (!response.ok) {
+              console.warn('SheetDB delete failed', response.status, await response.text());
+              return false;
+            }
+            return true;
+          } catch (error) {
+            console.error('SheetDB delete error:', error);
+            return false;
+          }
+        }
+
+        async function deleteCloudinaryImage(publicId) {
+          if (!publicId) return false;
+          try {
+            const response = await fetch('/api/delete-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ public_id: publicId }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              console.warn('Cloudinary delete failed:', result);
+              return false;
+            }
+            return true;
+          } catch (error) {
+            console.error('Cloudinary delete error:', error);
+            return false;
+          }
+        }
+
+        async function deleteFacility(facilityId) {
+          const facility = allFacilities.find((f) => String(f.id) === String(facilityId));
+          if (!facility) return;
+          if (!confirm('Are you sure you want to delete this facility?')) return;
+
+          if (facility.photoPublicId) {
+            await deleteCloudinaryImage(facility.photoPublicId);
+          }
+
+          const sheetDeleted = await deleteSheetDbRow(facilityId);
+          if (!sheetDeleted) {
+            console.warn('SheetDB row delete did not succeed; local cleanup will continue.');
+          }
+
+          allFacilities = allFacilities.filter((f) => String(f.id) !== String(facilityId));
+          localStorage.setItem(savedKey, JSON.stringify(allFacilities));
+          if (markers[facilityId] && map) {
+            map.removeLayer(markers[facilityId]);
+            delete markers[facilityId];
+          }
+          renderTableForPage();
+        }
+
         function getFilteredFacilities() {
           const q = (searchInput?.value || '').trim().toLowerCase();
           if (!q) return allFacilities.slice();
@@ -252,21 +319,22 @@
           });
         }
 
-        tableBody?.addEventListener('click', (e) => {
+        tableBody?.addEventListener('click', async (e) => {
           const btn = e.target.closest('button[data-id]');
           if (!btn) return;
-          const id = Number(btn.getAttribute('data-id'));
+          const id = btn.getAttribute('data-id');
+          if (!id) return;
           if (btn.classList.contains('view')) {
             const m = markers[id];
-            if (m && map) { map.setView(m.getLatLng(), 15); m.openPopup(); }
+            if (m && map) {
+              scrollToMap();
+              map.setView(m.getLatLng(), 15);
+              m.openPopup();
+            }
             return;
           }
           if (btn.classList.contains('delete')) {
-            if (!confirm('Delete facility?')) return;
-            allFacilities = allFacilities.filter(x => x.id !== id);
-            localStorage.setItem(savedKey, JSON.stringify(allFacilities));
-            if (markers[id] && map) { map.removeLayer(markers[id]); delete markers[id]; }
-            renderTableForPage();
+            await deleteFacility(id);
           }
         });
 
