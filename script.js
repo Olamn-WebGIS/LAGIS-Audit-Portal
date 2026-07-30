@@ -971,16 +971,17 @@ if (getGpsBtn) {
     getGpsBtn.innerHTML = '<span class="gps-spinner"></span>Locating...';
   }
 
-  function setGpsInfo(text, quality = 'normal') {
-    if (!gpsInfo) return;
-    gpsInfo.textContent = text;
-    gpsInfo.classList.remove('good', 'fair', 'poor', 'error');
+  function setGpsStatus(text, quality = 'normal') {
+    const gpsStatus = document.getElementById('gps-status');
+    if (!gpsStatus) return;
+    gpsStatus.textContent = text;
+    gpsStatus.classList.remove('good', 'fair', 'poor', 'error');
     if (quality === 'good') {
-      gpsInfo.classList.add('good');
+      gpsStatus.classList.add('good');
     } else if (quality === 'fair') {
-      gpsInfo.classList.add('fair');
+      gpsStatus.classList.add('fair');
     } else if (quality === 'poor' || quality === 'error') {
-      gpsInfo.classList.add('poor');
+      gpsStatus.classList.add('poor');
     }
   }
 
@@ -1056,71 +1057,64 @@ if (getGpsBtn) {
       return;
     }
 
-    setGpsInfo('', false);
+    setGpsStatus('Getting GPS... Please wait 15s', 'normal');
     setGpsButtonLoading();
 
     if (navigator.permissions && navigator.permissions.query) {
       try {
         const status = await navigator.permissions.query({ name: 'geolocation' });
         if (status.state === 'denied') {
-          const message = 'Location permission is denied. Allow location access for this site in Safari settings.';
-          setGpsInfo(message, true);
+          const message = 'Location permission is denied. Allow location access for this site in browser settings.';
+          setGpsStatus(message, 'error');
           alert(message);
           resetGpsButton();
           return;
         }
       } catch (permError) {
-        // Safari may not support permission query; continue to request location.
+        // Browser does not support permissions query; continue to request location.
       }
     }
 
-    try {
-      let position;
-      try {
-        position = await getQuickPosition(10000);
-      } catch (quickError) {
-        try {
-          position = await getBestGpsPosition(30, 30000);
-        } catch (watchError) {
-          position = await getFallbackPosition(10000);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        if (facilityGps) {
+          facilityGps.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          facilityGps.dataset.accuracy = String(Math.round(accuracy));
         }
-      }
-      const { latitude, longitude, accuracy } = position.coords;
-      const quality = getGpsQuality(accuracy);
-      if (facilityGps) {
-        facilityGps.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-        facilityGps.dataset.accuracy = String(Math.round(accuracy));
-      }
 
-      if (quality === 'good') {
-        setGpsInfo(`Accuracy: ${Math.round(accuracy)}m ✓ Good`, 'good');
-      } else if (quality === 'fair') {
-        setGpsInfo(`Accuracy: ${Math.round(accuracy)}m ⚠ Fair`, 'fair');
-      } else {
-        const message = `Accuracy: ${Math.round(accuracy)}m ✗ Poor - Move outside`;
-        setGpsInfo(message, 'poor');
-        alert(`GPS Accuracy is ${Math.round(accuracy)}m. Too low. \nPlease go outside and try again.`);
+        const quality = getGpsQuality(accuracy);
+        if (quality === 'good') {
+          setGpsStatus(`✓ GPS Got! Accuracy: ${accuracy.toFixed(2)}m`, 'good');
+        } else if (quality === 'fair') {
+          setGpsStatus(`⚠ GPS Got! Accuracy: ${accuracy.toFixed(2)}m`, 'fair');
+        } else {
+          setGpsStatus(`✗ GPS Got! Accuracy: ${accuracy.toFixed(2)}m - Poor, move outside the building`, 'poor');
+          alert(`GPS Accuracy is ${accuracy.toFixed(2)}m. Too low.\nPlease go outside and try again.`);
+        }
         resetGpsButton();
-        return;
-      }
-    } catch (error) {
-      let message = 'Unable to determine location.';
-      if (error && error.code) {
-        if (error.code === error.PERMISSION_DENIED) {
-          message = 'Location access denied. Please enable location for this site.';
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          message = 'Location unavailable. Check your GPS or network connection.';
-        } else if (error.code === error.TIMEOUT) {
-          message = 'Location request timed out. Try again or check your signal.';
+      },
+      (error) => {
+        let message;
+        if (error.code === 1) {
+          message = 'Permission Denied. Reload page and allow location access.';
+        } else if (error.code === 2) {
+          message = 'Position Unavailable. Try moving outside.';
+        } else if (error.code === 3) {
+          message = 'GPS Timeout. Tap button again.';
+        } else {
+          message = error.message || 'GPS error. Try again.';
         }
-      } else if (error && error.message) {
-        message = error.message;
+        setGpsStatus(message, 'error');
+        console.log(error);
+        resetGpsButton();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
       }
-      setGpsInfo(message, true);
-      alert(message);
-    } finally {
-      resetGpsButton();
-    }
+    );
   });
 }
 
@@ -1174,9 +1168,7 @@ if (facilityForm) {
 
     const gpsAccuracyValue = facilityGps?.dataset?.accuracy ? Number(facilityGps.dataset.accuracy) : null;
     if (gpsAccuracyValue !== null && gpsAccuracyValue > 15) {
-      if (gpsInfo) {
-        setGpsInfo('GPS accuracy is too low. Please get a better fix before saving.', 'poor');
-      }
+      setGpsStatus('GPS accuracy is too low. Please get a better fix before saving.', 'poor');
       alert('GPS accuracy is too low. Please get a better location fix before saving.');
       return;
     }

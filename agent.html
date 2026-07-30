@@ -169,12 +169,7 @@
             <div>
               <label for="facilityGps">GPS</label>
               <input id="facilityGps" type="text" readonly placeholder="Tap Get GPS" />
-              <div class="gps-info" id="gpsInfo" aria-live="polite"></div>
-              <div class="gps-legend" aria-hidden="true">
-                <span class="good">Green: &lt; 5m ✓ Good</span>
-                <span class="fair">Yellow: 5m - 15m ⚠ Fair</span>
-                <span class="poor">Red: &gt; 15m ✗ Poor - Move outside</span>
-              </div>
+              <p class="gps-info" id="gps-status" aria-live="polite"></p>
             </div>
             <button type="button" class="gps-button" id="getGpsBtn">Get GPS</button>
           </div>
