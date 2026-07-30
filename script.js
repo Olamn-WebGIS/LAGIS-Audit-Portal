@@ -977,7 +977,7 @@ if (getGpsBtn) {
     gpsInfo.classList.toggle('error', isError);
   }
 
-  async function getFallbackPosition(maxWaitMs = 30000) {
+  async function getQuickPosition(maxWaitMs = 10000) {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         resolve,
@@ -1064,9 +1064,13 @@ if (getGpsBtn) {
     try {
       let position;
       try {
-        position = await getBestGpsPosition(20, 60000);
-      } catch (watchError) {
-        position = await getFallbackPosition(30000);
+        position = await getQuickPosition(10000);
+      } catch (quickError) {
+        try {
+          position = await getBestGpsPosition(30, 30000);
+        } catch (watchError) {
+          position = await getFallbackPosition(10000);
+        }
       }
       const { latitude, longitude, accuracy } = position.coords;
       if (facilityGps) {
