@@ -977,6 +977,20 @@ if (getGpsBtn) {
     gpsInfo.classList.toggle('error', isError);
   }
 
+  async function getFallbackPosition(maxWaitMs = 30000) {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        reject,
+        {
+          enableHighAccuracy: false,
+          timeout: maxWaitMs,
+          maximumAge: 60000,
+        }
+      );
+    });
+  }
+
   async function getBestGpsPosition(desiredAccuracy = 20, maxWaitMs = 30000) {
     return new Promise((resolve, reject) => {
       let best = null;
@@ -1016,7 +1030,7 @@ if (getGpsBtn) {
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 0,
+          maximumAge: 10000,
           timeout: maxWaitMs,
         }
       );
@@ -1048,7 +1062,12 @@ if (getGpsBtn) {
     }
 
     try {
-      const position = await getBestGpsPosition(20, 60000);
+      let position;
+      try {
+        position = await getBestGpsPosition(20, 60000);
+      } catch (watchError) {
+        position = await getFallbackPosition(30000);
+      }
       const { latitude, longitude, accuracy } = position.coords;
       if (facilityGps) {
         facilityGps.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
