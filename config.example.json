@@ -1,0 +1,5 @@
+{
+  "SHEETDB_URL": "https://sheetdb.io/api/v1/your-sheet-id",
+  "CLOUD_NAME": "your-cloudinary-cloud-name",
+  "UPLOAD_PRESET": "your-upload-preset"
+}

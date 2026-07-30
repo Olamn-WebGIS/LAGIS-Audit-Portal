@@ -4,22 +4,12 @@ const agentModal = document.getElementById('agentModal');
 const adminModal = document.getElementById('adminModal');
 const closeButtons = document.querySelectorAll('[data-close]');
 
-const envPromise = fetch('.env')
-  .then((response) => response.ok ? response.text() : '')
-  .then((text) => {
-    return text.split(/\r?\n/).reduce((acc, line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return acc;
-      const [key, ...rest] = trimmed.split('=');
-      if (!key) return acc;
-      acc[key.trim()] = rest.join('=').trim();
-      return acc;
-    }, {});
-  })
+const configPromise = fetch('/config.json')
+  .then((response) => response.ok ? response.json() : {})
   .catch(() => ({}));
 
 function getEnvValue(key) {
-  return envPromise.then((env) => env[key] || '');
+  return configPromise.then((config) => config[key] || '');
 }
 
 function openModal(modal) {
@@ -1017,7 +1007,7 @@ if (document.body.classList.contains('agent-page')) {
     }).addTo(agentMap);
 
     const fallbackBounds = [[6.25, 2.70], [6.80, 3.75]];
-    const boundaryUrl = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/NGA/LA.geo.json';
+    const boundaryUrl = '/lagos-boundary.json';
 
     function getFirstPolygonCoordinates(geojsonData) {
       if (!geojsonData) return null;
