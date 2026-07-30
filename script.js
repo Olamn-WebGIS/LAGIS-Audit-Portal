@@ -178,6 +178,19 @@ function addFacilityMarker(map, facility) {
   return marker;
 }
 
+function clearMarkers() {
+  Object.values(facilityMarkers).forEach((marker) => {
+    try {
+      if (marker && marker.remove) {
+        marker.remove();
+      }
+    } catch (error) {
+      console.warn('Failed to remove marker', error);
+    }
+  });
+  facilityMarkers = {};
+}
+
 function loadSavedFacilityMarkers(map) {
   facilityMarkers = {};
   const savedFacilities = JSON.parse(localStorage.getItem(savedFacilitiesKey) || '[]');
@@ -451,7 +464,47 @@ function formatCsv(facilities) {
 }
 
 function getExportData(facilities) {
-  return facilities.map(({ photo, ...rest }) => rest);
+  return facilities.map(({ photo, photoLocalData, photoPublicId, ...rest }) => rest);
+}
+
+function dataURLToBlob(dataURL) {
+  const parts = dataURL.split(',');
+  const meta = parts[0].match(/:(.*?);/);
+  const mime = meta ? meta[1] : 'image/jpeg';
+  const binary = atob(parts[1]);
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    array[i] = binary.charCodeAt(i);
+  }
+  return new Blob([array], { type: mime });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadDataUrlToCloudinary(dataUrl) {
+  const blob = dataURLToBlob(dataUrl);
+  const file = new File([blob], `offline-${Date.now()}.jpg`, { type: blob.type });
+  return uploadToCloudinary(file);
+}
+
+async function uploadOfflinePhoto(facility) {
+  if (!facility || !facility.photoLocalData || facility.photoPublicId) {
+    return null;
+  }
+  try {
+    const uploaded = await uploadDataUrlToCloudinary(facility.photoLocalData);
+    return uploaded;
+  } catch (err) {
+    console.warn('Offline photo upload failed:', err);
+    return null;
+  }
 }
 
 function getCloudUrl() {
@@ -534,9 +587,15 @@ async function fetchCloudFacilities() {
     address: item.address || '',
     gps: item.gps || '',
     photo: item.photo || '',
+    photoPublicId: item.photoPublicId || item.photo_public_id || '',
     addedBy: item.AddedBy || item.addedBy || '',
     synced: item.synced === true || item.synced === 'true',
   }));
+}
+
+async function getPendingFacilities() {
+  const facilities = JSON.parse(localStorage.getItem(savedFacilitiesKey) || '[]');
+  return (Array.isArray(facilities) ? facilities : []).filter((facility) => !facility.synced);
 }
 
 async function syncToCloud() {
@@ -572,6 +631,34 @@ async function syncToCloud() {
     }
 
     for (const facility of unsyncedFacilities) {
+      const facilityId = String(facility.id || '');
+      if (!facilityId) {
+        continue;
+      }
+
+      if (remoteIds.has(facilityId)) {
+        const index = facilities.findIndex((item) => String(item.id) === facilityId);
+        if (index !== -1) {
+          facilities[index] = { ...facilities[index], synced: true };
+        }
+        continue;
+      }
+
+      let photoUrl = facility.photo || '';
+      let photoPublicId = facility.photoPublicId || '';
+      if (facility.photoLocalData && !photoPublicId) {
+        const uploaded = await uploadOfflinePhoto(facility);
+        if (uploaded) {
+          photoUrl = uploaded.url;
+          photoPublicId = uploaded.publicId;
+        }
+      }
+
+      if (!photoUrl) {
+        console.warn('Skipping facility sync because photo is not available yet:', facilityId);
+        continue;
+      }
+
       const payload = {
         id: facility.id,
         timestamp: facility.createdAt,
@@ -580,7 +667,8 @@ async function syncToCloud() {
         lga: facility.lga,
         address: facility.address,
         gps: facility.gps,
-        photo: facility.photo || '',
+        photo: photoUrl,
+        photoPublicId,
         AddedBy: facility.addedBy || '',
         synced: true,
       };
@@ -595,9 +683,15 @@ async function syncToCloud() {
         throw new Error('Sync failed for facility ' + facility.id);
       }
 
-      const index = facilities.findIndex((item) => String(item.id) === String(facility.id));
+      const index = facilities.findIndex((item) => String(item.id) === facilityId);
       if (index !== -1) {
-        facilities[index] = { ...facilities[index], synced: true };
+        facilities[index] = {
+          ...facilities[index],
+          photo: photoUrl,
+          photoPublicId,
+          photoLocalData: facilities[index].photoLocalData && photoPublicId ? null : facilities[index].photoLocalData,
+          synced: true,
+        };
       }
     }
 
@@ -645,6 +739,7 @@ async function downloadFromCloud() {
       address: item.address || '',
       gps: item.gps || '',
       photo: item.photo || '',
+      photoPublicId: item.photoPublicId || item.photo_public_id || '',
       addedBy: item.AddedBy || item.addedBy || '',
       synced: item.synced === true || item.synced === 'true',
     }));
@@ -655,10 +750,24 @@ async function downloadFromCloud() {
     let addedCount = 0;
 
     remoteFacilities.forEach((remote) => {
-      if (!remote.id || localIds.has(remote.id)) return;
-      mergedFacilities.push(remote);
-      localIds.add(remote.id);
-      addedCount += 1;
+      if (!remote.id) return;
+      const existingIndex = mergedFacilities.findIndex((facility) => String(facility.id) === String(remote.id));
+      if (existingIndex === -1) {
+        mergedFacilities.push(remote);
+        localIds.add(remote.id);
+        addedCount += 1;
+        return;
+      }
+
+      const existing = mergedFacilities[existingIndex];
+      mergedFacilities[existingIndex] = {
+        ...existing,
+        ...remote,
+        photo: remote.photo || existing.photo,
+        photoPublicId: existing.photoPublicId || remote.photoPublicId || '',
+        addedBy: existing.addedBy || remote.addedBy || '',
+        synced: existing.synced || remote.synced,
+      };
     });
 
     if (!addedCount) {
@@ -668,11 +777,9 @@ async function downloadFromCloud() {
 
     localStorage.setItem(savedFacilitiesKey, JSON.stringify(mergedFacilities));
     allFacilities = mergedFacilities;
-    clearMarkers();
-    mergedFacilities.forEach((f) => addMarker(f));
-    renderTableForPage();
     console.log('Downloaded facilities', mergedFacilities);
     alert(`${addedCount} new facilities downloaded from cloud successfully.`);
+    window.location.reload();
   } catch (err) {
     alert('Download from cloud failed. Please try again.');
     console.error(err);
@@ -719,6 +826,10 @@ function exportFacilities(format) {
 function zoomToFacility(facilityId) {
   const marker = facilityMarkers[facilityId];
   if (!marker || !agentMap) return;
+  const mapElement = document.getElementById('lagosMap');
+  if (mapElement) {
+    mapElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
   agentMap.setView(marker.getLatLng(), 15, { animate: true });
   marker.openPopup();
 }
@@ -756,21 +867,18 @@ async function deleteFacility(facilityId) {
   const url = await getCloudUrl();
   if (url) {
     try {
-      const deleteResponse = await fetch(`${url}?id=${encodeURIComponent(facilityId)}`, {
+      const deleteResponse = await fetch(`${url}/id/${encodeURIComponent(facilityId)}`, {
         method: 'DELETE',
       });
       if (!deleteResponse.ok) {
-        alert('Remote delete failed. Please try again.');
-        return;
+        console.warn('SheetDB delete failed for', facilityId, deleteResponse.status);
       }
     } catch (err) {
       console.error('Remote delete error:', err);
-      alert('Remote delete failed. Please check your connection and try again.');
-      return;
     }
   }
 
-  const updatedFacilities = facilities.filter((facility) => facility.id !== facilityId);
+  const updatedFacilities = facilities.filter((facility) => String(facility.id) !== String(facilityId));
   localStorage.setItem(savedFacilitiesKey, JSON.stringify(updatedFacilities));
   allFacilities = updatedFacilities;
   if (facilityMarkers[facilityId]) {
@@ -850,6 +958,52 @@ if (getGpsBtn) {
     gpsInfo.classList.toggle('error', isError);
   }
 
+  async function getBestGpsPosition(desiredAccuracy = 20, maxWaitMs = 30000) {
+    return new Promise((resolve, reject) => {
+      let best = null;
+      let isSettled = false;
+
+      const finish = (result, success) => {
+        if (isSettled) return;
+        isSettled = true;
+        navigator.geolocation.clearWatch(watchId);
+        window.clearTimeout(timer);
+        if (success) {
+          resolve(result);
+        } else {
+          reject(result);
+        }
+      };
+
+      const timer = window.setTimeout(() => {
+        if (best) {
+          finish(best, true);
+        } else {
+          finish({ code: 3, message: 'Location request timed out.' }, false);
+        }
+      }, maxWaitMs);
+
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          if (!best || position.coords.accuracy < best.coords.accuracy) {
+            best = position;
+          }
+          if (position.coords.accuracy <= desiredAccuracy) {
+            finish(position, true);
+          }
+        },
+        (error) => {
+          finish(error, false);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: maxWaitMs,
+        }
+      );
+    });
+  }
+
   getGpsBtn.addEventListener('click', async () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser.');
@@ -874,41 +1028,31 @@ if (getGpsBtn) {
       }
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        if (facilityGps) {
-          facilityGps.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-        }
-        if (accuracy || accuracy === 0) {
-          setGpsInfo(`Accuracy: ${Math.round(accuracy)}m`, false);
-        }
-        resetGpsButton();
-      },
-      (error) => {
-        let message = 'Unable to determine location.';
-        if (error) {
-          if (error.code === error.PERMISSION_DENIED) {
-            message = 'Location access denied. Please enable location for this site.';
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            message = 'Location unavailable. Check your GPS or network connection.';
-          } else if (error.code === error.TIMEOUT) {
-            message = 'Location request timed out. Try again or check your signal.';
-          }
-          if (error.message) {
-            message += ` (${error.message})`;
-          }
-        }
-        setGpsInfo(message, true);
-        alert(message);
-        resetGpsButton();
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 0,
+    try {
+      const position = await getBestGpsPosition(20, 60000);
+      const { latitude, longitude, accuracy } = position.coords;
+      if (facilityGps) {
+        facilityGps.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
       }
-    );
+      setGpsInfo(`Accuracy: ${Math.round(accuracy)}m`, false);
+    } catch (error) {
+      let message = 'Unable to determine location.';
+      if (error && error.code) {
+        if (error.code === error.PERMISSION_DENIED) {
+          message = 'Location access denied. Please enable location for this site.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          message = 'Location unavailable. Check your GPS or network connection.';
+        } else if (error.code === error.TIMEOUT) {
+          message = 'Location request timed out. Try again or check your signal.';
+        }
+      } else if (error && error.message) {
+        message = error.message;
+      }
+      setGpsInfo(message, true);
+      alert(message);
+    } finally {
+      resetGpsButton();
+    }
   });
 }
 
@@ -967,7 +1111,7 @@ if (facilityForm) {
       );
     }
 
-    const saveFacility = async (photoUrl, photoPublicId) => {
+    const saveFacility = async (photoUrl, photoPublicId, photoLocalData) => {
       const facilities = JSON.parse(localStorage.getItem(savedFacilitiesKey) || '[]');
       const facilityData = {
         id: createUuid(),
@@ -976,10 +1120,12 @@ if (facilityForm) {
         lga,
         address,
         gps,
-        photo: photoUrl || null,
+        photo: photoUrl || photoLocalData || null,
+        photoLocalData: photoLocalData || null,
         photoPublicId: photoPublicId || null,
         createdAt: new Date().toISOString(),
         addedBy: localStorage.getItem('agentName') || '',
+        synced: false,
       };
 
       facilities.push(facilityData);
@@ -990,20 +1136,29 @@ if (facilityForm) {
       }
       populateFilterOptions(allFacilities);
       updateFacilitiesView();
-      alert('Facility Saved Offline');
+      alert('Facility saved locally. It will sync when online.');
       closeFacilityModal();
     };
 
-    if (photoFile) {
+    const saveOffline = async () => {
+      if (photoFile) {
+        const localData = await readFileAsDataUrl(photoFile);
+        await saveFacility(null, null, localData);
+      } else {
+        await saveFacility(null, null, null);
+      }
+    };
+
+    if (photoFile && navigator.onLine) {
       try {
         const uploaded = await uploadToCloudinary(photoFile);
-        await saveFacility(uploaded.url, uploaded.publicId);
+        await saveFacility(uploaded.url, uploaded.publicId, null);
       } catch (error) {
-        facilityPhotoError.textContent = 'Photo upload failed. Please try again.';
-        console.error(error);
+        console.warn('Photo upload failed, saving offline:', error);
+        await saveOffline();
       }
     } else {
-      saveFacility(null, null);
+      await saveOffline();
     }
   });
 }
@@ -1069,5 +1224,12 @@ if (document.body.classList.contains('agent-page')) {
 
     loadSavedFacilityMarkers(agentMap);
     initializeSyncStatus();
+
+    window.addEventListener('online', async () => {
+      const pending = await getPendingFacilities();
+      if (pending.length) {
+        syncToCloud();
+      }
+    });
   });
 }
