@@ -849,7 +849,7 @@ function zoomToFacility(facilityId) {
   if (mapElement) {
     mapElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  agentMap.setView(marker.getLatLng(), 15, { animate: true });
+  agentMap.setView(marker.getLatLng(), 20, { animate: true });
   marker.openPopup();
 }
 
@@ -987,7 +987,7 @@ if (getGpsBtn) {
 
   function getGpsQuality(accuracy) {
     if (accuracy <= 5) return 'good';
-    if (accuracy <= 15) return 'fair';
+    if (accuracy <= 20) return 'fair';
     return 'poor';
   }
 
@@ -1167,7 +1167,7 @@ if (facilityForm) {
     }
 
     const gpsAccuracyValue = facilityGps?.dataset?.accuracy ? Number(facilityGps.dataset.accuracy) : null;
-    if (gpsAccuracyValue !== null && gpsAccuracyValue > 15) {
+    if (gpsAccuracyValue !== null && gpsAccuracyValue > 20) {
       setGpsStatus('GPS accuracy is too low. Please get a better fix before saving.', 'poor');
       alert('GPS accuracy is too low. Please get a better location fix before saving.');
       return;

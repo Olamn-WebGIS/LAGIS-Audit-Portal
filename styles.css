@@ -532,7 +532,8 @@ body {
 }
 
 .map-card {
-  width: min(940px, 100%);
+  width: 100%;
+  max-width: 940px;
   background: white;
   border: 1px solid #e2e8ec;
   border-radius: 28px;
@@ -552,7 +553,8 @@ body {
 }
 
 .saved-facilities-card {
-  width: min(940px, 100%);
+  width: 100%;
+  max-width: 940px;
   background: white;
   border: 1px solid #e2e8ec;
   border-radius: 28px;
@@ -698,8 +700,8 @@ body {
 }
 
 .hero-card {
-  width: min(100%, 940px);
-  max-width: 100%;
+  width: 100%;
+  max-width: 940px;
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -941,23 +943,85 @@ button.secondary {
   }
 
   .page-shell {
-    padding: 24px 12px 32px;
+    display: block;
+    padding: 16px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
-  .hero-card {
-    padding: 24px 16px 28px;
+  .hero-card,
+  .map-card,
+  .saved-facilities-card,
+  .facility-card,
+  .download-card,
+  .modal-card {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
+
+  .hero-card,
+  .map-card,
+  .saved-facilities-card,
+  .facility-card,
+  .download-card,
+  .modal-card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .facility-filters,
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .facility-filters {
+    margin-bottom: 16px;
+  }
+
+  .facility-filters .filter-group,
+  .facility-filters .action-button.clear-filters {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .facility-filters .filter-group label,
+  .facility-filters .filter-group select {
+    width: 100%;
+    min-width: 0;
   }
 
   .button-row {
-    flex-wrap: wrap;
-    justify-content: space-between;
+    justify-content: stretch;
   }
 
   button.primary,
-  button.secondary {
-    width: calc(50% - 6px);
-    flex: 0 0 auto;
+  button.secondary,
+  .facility-actions .save-button,
+  .facility-actions .action-button {
+    width: 100%;
     min-width: 0;
+  }
+
+  .saved-facilities-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .saved-facilities-table th,
+  .saved-facilities-table td {
+    padding: 12px 10px;
+    white-space: nowrap;
   }
 
   .badge,
