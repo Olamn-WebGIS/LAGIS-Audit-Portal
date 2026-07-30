@@ -971,10 +971,23 @@ if (getGpsBtn) {
     getGpsBtn.innerHTML = '<span class="gps-spinner"></span>Locating...';
   }
 
-  function setGpsInfo(text, isError = false) {
+  function setGpsInfo(text, quality = 'normal') {
     if (!gpsInfo) return;
     gpsInfo.textContent = text;
-    gpsInfo.classList.toggle('error', isError);
+    gpsInfo.classList.remove('good', 'fair', 'poor', 'error');
+    if (quality === 'good') {
+      gpsInfo.classList.add('good');
+    } else if (quality === 'fair') {
+      gpsInfo.classList.add('fair');
+    } else if (quality === 'poor' || quality === 'error') {
+      gpsInfo.classList.add('poor');
+    }
+  }
+
+  function getGpsQuality(accuracy) {
+    if (accuracy <= 5) return 'good';
+    if (accuracy <= 15) return 'fair';
+    return 'poor';
   }
 
   async function getQuickPosition(maxWaitMs = 10000) {
@@ -1073,10 +1086,23 @@ if (getGpsBtn) {
         }
       }
       const { latitude, longitude, accuracy } = position.coords;
+      const quality = getGpsQuality(accuracy);
       if (facilityGps) {
         facilityGps.value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        facilityGps.dataset.accuracy = String(Math.round(accuracy));
       }
-      setGpsInfo(`Accuracy: ${Math.round(accuracy)}m`, false);
+
+      if (quality === 'good') {
+        setGpsInfo(`Accuracy: ${Math.round(accuracy)}m ✓ Good`, 'good');
+      } else if (quality === 'fair') {
+        setGpsInfo(`Accuracy: ${Math.round(accuracy)}m ⚠ Fair`, 'fair');
+      } else {
+        const message = `Accuracy: ${Math.round(accuracy)}m ✗ Poor - Move outside`;
+        setGpsInfo(message, 'poor');
+        alert(`GPS Accuracy is ${Math.round(accuracy)}m. Too low. \nPlease go outside and try again.`);
+        resetGpsButton();
+        return;
+      }
     } catch (error) {
       let message = 'Unable to determine location.';
       if (error && error.code) {
@@ -1145,6 +1171,16 @@ if (facilityForm) {
       facilityPhotoError.textContent = 'Photo is required.';
       hasError = true;
     }
+
+    const gpsAccuracyValue = facilityGps?.dataset?.accuracy ? Number(facilityGps.dataset.accuracy) : null;
+    if (gpsAccuracyValue !== null && gpsAccuracyValue > 15) {
+      if (gpsInfo) {
+        setGpsInfo('GPS accuracy is too low. Please get a better fix before saving.', 'poor');
+      }
+      alert('GPS accuracy is too low. Please get a better location fix before saving.');
+      return;
+    }
+
     if (hasError) return;
 
     function createUuid() {

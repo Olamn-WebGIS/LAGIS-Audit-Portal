@@ -306,7 +306,42 @@ body {
   min-height: 1.2rem;
 }
 
+.gps-info.good {
+  color: #1f6f3c;
+}
+
+.gps-info.fair {
+  color: #b57a00;
+}
+
+.gps-info.poor,
 .gps-info.error {
+  color: #a72a2a;
+}
+
+.gps-legend {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: #47524d;
+}
+
+.gps-legend span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.gps-legend .good {
+  color: #1f6f3c;
+}
+
+.gps-legend .fair {
+  color: #b57a00;
+}
+
+.gps-legend .poor {
   color: #a72a2a;
 }
 
