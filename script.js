@@ -527,13 +527,14 @@ async function fetchCloudFacilities() {
 
   return data.map((item) => ({
     id: String(item.id || ''),
-    createdAt: item.createdAt || new Date().toISOString(),
-    type: item.type || '',
-    name: item.name || '',
+    createdAt: item.timestamp || item.createdAt || new Date().toISOString(),
+    type: item.facilityType || item.type || '',
+    name: item.facilityName || item.name || '',
     lga: item.lga || '',
     address: item.address || '',
     gps: item.gps || '',
-    addedBy: item.addedBy || '',
+    photo: item.photo || '',
+    addedBy: item.AddedBy || item.addedBy || '',
     synced: item.synced === true || item.synced === 'true',
   }));
 }
@@ -573,13 +574,14 @@ async function syncToCloud() {
     for (const facility of unsyncedFacilities) {
       const payload = {
         id: facility.id,
-        createdAt: facility.createdAt,
-        type: facility.type,
-        name: facility.name,
+        timestamp: facility.createdAt,
+        facilityType: facility.type,
+        facilityName: facility.name,
         lga: facility.lga,
         address: facility.address,
         gps: facility.gps,
-        addedBy: facility.addedBy || '',
+        photo: facility.photo || '',
+        AddedBy: facility.addedBy || '',
         synced: true,
       };
 
@@ -626,13 +628,14 @@ async function downloadFromCloud() {
 
     const remoteFacilities = data.map((item) => ({
       id: String(item.id || ''),
-      createdAt: item.createdAt || new Date().toISOString(),
-      type: item.type || '',
-      name: item.name || '',
+      createdAt: item.timestamp || item.createdAt || new Date().toISOString(),
+      type: item.facilityType || item.type || '',
+      name: item.facilityName || item.name || '',
       lga: item.lga || '',
       address: item.address || '',
       gps: item.gps || '',
-      addedBy: item.addedBy || '',
+      photo: item.photo || '',
+      addedBy: item.AddedBy || item.addedBy || '',
       synced: item.synced === true || item.synced === 'true',
     }));
 
