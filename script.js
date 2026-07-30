@@ -5,8 +5,19 @@ const adminModal = document.getElementById('adminModal');
 const closeButtons = document.querySelectorAll('[data-close]');
 
 const configPromise = fetch('/config.json')
-  .then((response) => response.ok ? response.json() : {})
-  .catch(() => ({}));
+  .then(async (response) => {
+    if (response.ok) return response.json();
+    const apiResponse = await fetch('/api/config');
+    return apiResponse.ok ? apiResponse.json() : {};
+  })
+  .catch(async () => {
+    try {
+      const apiResponse = await fetch('/api/config');
+      return apiResponse.ok ? apiResponse.json() : {};
+    } catch {
+      return {};
+    }
+  });
 
 function getEnvValue(key) {
   return configPromise.then((config) => config[key] || '');
@@ -1007,97 +1018,32 @@ if (document.body.classList.contains('agent-page')) {
     }).addTo(agentMap);
 
     const fallbackBounds = [[6.25, 2.70], [6.80, 3.75]];
-    const boundaryUrl = '/lagos-boundary.json';
 
-    function getFirstPolygonCoordinates(geojsonData) {
-      if (!geojsonData) return null;
-      if (geojsonData.type === 'FeatureCollection' && Array.isArray(geojsonData.features) && geojsonData.features[0]) {
-        return getFirstPolygonCoordinates(geojsonData.features[0]);
-      }
-      if (geojsonData.type === 'Feature' && geojsonData.geometry) {
-        return getFirstPolygonCoordinates(geojsonData.geometry);
-      }
-      if (geojsonData.type === 'Polygon' && Array.isArray(geojsonData.coordinates) && geojsonData.coordinates[0]) {
-        return geojsonData.coordinates[0];
-      }
-      if (geojsonData.type === 'MultiPolygon' && Array.isArray(geojsonData.coordinates) && geojsonData.coordinates[0]) {
-        return geojsonData.coordinates[0][0];
-      }
-      return null;
-    }
+    const boundaryLayer = L.rectangle(fallbackBounds, {
+      color: '#006400',
+      weight: 3,
+      fillOpacity: 0,
+    }).addTo(agentMap);
 
-    try {
-      const response = await fetch(boundaryUrl);
-      if (!response.ok) throw new Error('Boundary fetch failed');
-      const boundaryData = await response.json();
-      const boundaryCoordinates = getFirstPolygonCoordinates(boundaryData);
+    const worldMask = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]],
+          [[2.70, 6.25], [3.75, 6.25], [3.75, 6.80], [2.70, 6.80], [2.70, 6.25]],
+        ],
+      },
+    };
 
-      if (boundaryCoordinates) {
-        const boundaryLayer = L.geoJSON(boundaryData, {
-          style: { color: '#006400', weight: 3, fillOpacity: 0 },
-        }).addTo(agentMap);
+    L.geoJSON(worldMask, {
+      style: { color: '#000', weight: 0, fillColor: '#000', fillOpacity: 0.5 },
+    }).addTo(agentMap);
 
-        const worldMask = {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Polygon',
-            coordinates: [
-              [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]],
-              boundaryCoordinates,
-            ],
-          },
-        };
-
-        L.geoJSON(worldMask, {
-          style: { color: '#000', weight: 0, fillColor: '#000', fillOpacity: 0.5 },
-        }).addTo(agentMap);
-
-        const bounds = boundaryLayer.getBounds();
-        agentMap.fitBounds(bounds.pad(0.12), { maxZoom: 15 });
-        agentMap.setMaxBounds(bounds.pad(0.3));
-      } else {
-        throw new Error('Boundary geometry unavailable');
-      }
-    } catch (error) {
-      console.warn('Could not load Lagos boundary GeoJSON, using fallback bounds.', error);
-      const fallbackLayer = L.geoJSON({
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [2.70, 6.25],
-            [3.75, 6.25],
-            [3.75, 6.80],
-            [2.70, 6.80],
-            [2.70, 6.25],
-          ]],
-        },
-      }, {
-        style: { color: '#006400', weight: 3, fillOpacity: 0 },
-      }).addTo(agentMap);
-
-      const fallbackMask = {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [
-            [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]],
-            [[2.70, 6.25], [3.75, 6.25], [3.75, 6.80], [2.70, 6.80], [2.70, 6.25]],
-          ],
-        },
-      };
-
-      L.geoJSON(fallbackMask, {
-        style: { color: '#000', weight: 0, fillColor: '#000', fillOpacity: 0.5 },
-      }).addTo(agentMap);
-
-      const bounds = fallbackLayer.getBounds();
-      agentMap.fitBounds(bounds.pad(0.12), { maxZoom: 15 });
-      agentMap.setMaxBounds(bounds.pad(0.3));
-    }
+    const bounds = boundaryLayer.getBounds();
+    agentMap.fitBounds(bounds.pad(0.12), { maxZoom: 15 });
+    agentMap.setMaxBounds(bounds.pad(0.3));
 
     const labelControl = L.control({ position: 'topright' });
     labelControl.onAdd = function () {
