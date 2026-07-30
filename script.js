@@ -619,9 +619,28 @@ async function syncToCloud() {
   try {
     const remoteFacilities = await fetchCloudFacilities();
     const remoteIds = new Set(remoteFacilities.map((facility) => String(facility.id)));
+
+    const deletedRemoteFacilities = facilities.filter((facility) => {
+      const facilityId = String(facility.id || '');
+      return facilityId && facility.synced && !remoteIds.has(facilityId);
+    });
+
+    if (deletedRemoteFacilities.length) {
+      facilities = facilities.filter((facility) => {
+        const facilityId = String(facility.id || '');
+        return !(facilityId && facility.synced && !remoteIds.has(facilityId));
+      });
+      localStorage.setItem(savedFacilitiesKey, JSON.stringify(facilities));
+      allFacilities = facilities;
+      if (document.body.classList.contains('agent-page') && agentMap) {
+        clearMarkers();
+        facilities.forEach((facility) => addFacilityMarker(agentMap, facility));
+      }
+    }
+
     const unsyncedFacilities = facilities.filter((facility) => {
       const facilityId = String(facility.id || '');
-      return !remoteIds.has(facilityId);
+      return !remoteIds.has(facilityId) && !facility.synced;
     });
 
     if (!unsyncedFacilities.length) {
