@@ -622,9 +622,19 @@ async function downloadFromCloud() {
 
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Download failed');
-    const data = await response.json();
-    if (!Array.isArray(data)) throw new Error('Unexpected cloud data');
+    if (!response.ok) {
+      const message = await response.text().catch(() => 'No response body');
+      throw new Error(`Download failed: ${response.status} ${response.statusText} - ${message}`);
+    }
+
+    let data = await response.json();
+    if (!Array.isArray(data)) {
+      if (data && Array.isArray(data.data)) {
+        data = data.data;
+      } else {
+        throw new Error('Unexpected cloud data format');
+      }
+    }
 
     const remoteFacilities = data.map((item) => ({
       id: String(item.id || ''),
@@ -661,6 +671,7 @@ async function downloadFromCloud() {
     clearMarkers();
     mergedFacilities.forEach((f) => addMarker(f));
     renderTableForPage();
+    console.log('Downloaded facilities', mergedFacilities);
     alert(`${addedCount} new facilities downloaded from cloud successfully.`);
   } catch (err) {
     alert('Download from cloud failed. Please try again.');
